@@ -1,0 +1,75 @@
+Install-Module -Name Az -Scope CurrentUser -Repository PSGallery -Force
+
+
+Connect-AzAccount
+
+$rg = @{
+    Name = 'Test-Depl'
+    Location = 'eastus'
+}
+New-AzResourceGroup @rg
+
+$vnet = @{
+    Name = 'myVNet'
+    ResourceGroupName = 'Test-Depl'
+    Location = 'eastus'
+    AddressPrefix = '12.0.0.0/16'    
+}
+$virtualNetwork = New-AzVirtualNetwork @vnet
+
+$subnet = @{
+    Name = 'default'
+    VirtualNetwork = $virtualNetwork
+    AddressPrefix = '12.0.0.0/24'
+}
+$subnetConfig = Add-AzVirtualNetworkSubnetConfig @subnet
+
+$virtualNetwork | Set-AzVirtualNetwork
+
+
+$vm1 = @{
+    ResourceGroupName = 'Test-Depl'
+    Location = 'eastus'
+    Name = 'myVM1'
+    VirtualNetworkName = 'myVNet'
+    SubnetName = 'default'
+    size='Standard_B2s'
+   
+}
+New-AzVM @vm1 -AsJob
+
+
+Get-Job
+
+#$ip = @{
+ #   Name = 'VM1_public'
+ #   ResourceGroupName = 'Test-Depl'
+#}
+#Get-AzPublicIpAddress @ip | select IpAddress
+####################################################################
+
+#Create an Azure public IP address
+New-AzPublicIpAddress -Name "MyStandardPublicIP" -ResourceGroupName "Test-Depl" -Location "East US" -Sku "Basic" -AllocationMethod "Dynamic" -IpAddressVersion "IPv4" 
+# Get the VM resource group and name
+$resourceGroupName = "Test-Depl"
+$vmName = "myvm1"
+
+# Get the existing public IP address resource
+$publicIpName = "MyStandardPublicIP"
+$publicIpResource = Get-AzPublicIpAddress -Name $publicIpName -ResourceGroupName $resourceGroupName
+# Get the VM network interface
+$nic = Get-AzNetworkInterface -ResourceGroupName $resourceGroupName -name $vmName
+
+# Update the IP configuration to associate the public IP address
+$nic.IpConfigurations[0].PublicIpAddress = $publicIpResource
+Set-AzNetworkInterface -NetworkInterface $nic
+
+####Clean Up!
+Stop-AzVM -ResourceGroupName $resourceGroupName -Name $vmName -Force
+
+Remove-AzResourceGroup -Name 'Test-Depl' -Force  -AsJob
+####See Progress
+Get-Job
+
+remove-PSSession
+Get-PSSession | Format-Table ComputerName, InstanceID  -AutoSize
